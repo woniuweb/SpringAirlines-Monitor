@@ -102,7 +102,12 @@ class SpringAirlinesAdapter(SourceAdapter):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.browser = AgentBrowserClient(self.config.base_dir)
+        self.browser = AgentBrowserClient(
+            self.config.base_dir,
+            headless=self.config.browser_headless,
+            executable_path=self.config.browser_executable_path,
+            channel=self.config.browser_channel,
+        )
         self._blocked_message = ""
         self._last_request_at = 0.0
         self._request_interval_seconds = 1.25

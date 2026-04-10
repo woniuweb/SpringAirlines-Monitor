@@ -45,6 +45,16 @@ spring_japan_enabled = false
 peach_enabled = false
 jetstar_japan_enabled = false
 
+[browser]
+# Linux 部署建议使用无头模式
+headless = true
+
+# 可选：显式指定浏览器可执行文件路径，留空则自动查找系统浏览器或回退 Playwright Chromium
+browser_executable_path = ""
+
+# 可选：Playwright browser channel，例如 chrome / msedge
+browser_channel = ""
+
 [performance]
 # Spring live 浏览器采集并发 worker 数
 # 当前主链路按单路由持久会话扫描，默认用 1，避免同时开多个 Spring route session
@@ -74,3 +84,39 @@ level = "INFO"
 
 # 是否打印阶段摘要，并写入 output/latest/run.log
 stage_summary = true
+
+[email]
+# Linux 定时任务默认关闭，部署时改为 true
+enabled = false
+
+# SMTP 主机和端口
+smtp_host = ""
+smtp_port = 587
+
+# SMTP 登录账号
+smtp_username = ""
+
+# SMTP 密码环境变量名，不把密码直接写进配置文件
+smtp_password_env = "FARE_MONITOR_SMTP_PASSWORD"
+
+# 发件人地址；留空时回退 smtp_username
+from_address = ""
+
+# 多个收件人邮箱
+to_addresses = ["example@example.com"]
+
+# 邮件主题前缀
+subject_prefix = "[Fare Monitor]"
+
+# 成功/失败时是否发信
+send_on_success = true
+send_on_failure = true
+
+# 邮件附件开关
+attach_report_html = true
+attach_qualified_csv = true
+attach_run_log_on_failure = true
+
+# SMTP 传输方式
+smtp_use_tls = true
+smtp_use_ssl = false

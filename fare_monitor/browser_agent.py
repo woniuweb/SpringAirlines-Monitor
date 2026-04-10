@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -37,7 +38,7 @@ import json
 import sys
 from playwright.sync_api import sync_playwright
 
-executable = sys.argv[1]
+browser_options = json.loads(sys.argv[1])
 url = sys.argv[2]
 
 script = r"""
@@ -67,12 +68,22 @@ script = r"""
 }
 """
 
+def launch_browser(playwright):
+    launch_kwargs = {
+        'headless': bool(browser_options.get('headless', True)),
+        'args': ['--disable-blink-features=AutomationControlled'],
+    }
+    executable_path = browser_options.get('executable_path') or None
+    channel = browser_options.get('channel') or None
+    if executable_path:
+        launch_kwargs['executable_path'] = executable_path
+    elif channel:
+        launch_kwargs['channel'] = channel
+    return playwright.chromium.launch(**launch_kwargs)
+
+
 with sync_playwright() as p:
-    browser = p.chromium.launch(
-        executable_path=executable,
-        headless=False,
-        args=['--disable-blink-features=AutomationControlled'],
-    )
+    browser = launch_browser(p)
     context = browser.new_context(locale='en-US')
     page = context.new_page()
     page.set_extra_http_headers({'Accept-Language': 'en-US,en;q=0.9'})
@@ -95,7 +106,7 @@ import re
 import sys
 from playwright.sync_api import sync_playwright
 
-executable = sys.argv[1]
+browser_options = json.loads(sys.argv[1])
 url = sys.argv[2]
 threshold = float(sys.argv[3])
 fx_to_cny = json.loads(sys.argv[4])
@@ -213,12 +224,22 @@ def click_preview(page, target):
     return False
 
 
+def launch_browser(playwright):
+    launch_kwargs = {
+        "headless": bool(browser_options.get("headless", True)),
+        "args": ["--disable-blink-features=AutomationControlled"],
+    }
+    executable_path = browser_options.get("executable_path") or None
+    channel = browser_options.get("channel") or None
+    if executable_path:
+        launch_kwargs["executable_path"] = executable_path
+    elif channel:
+        launch_kwargs["channel"] = channel
+    return playwright.chromium.launch(**launch_kwargs)
+
+
 with sync_playwright() as p:
-    browser = p.chromium.launch(
-        executable_path=executable,
-        headless=False,
-        args=["--disable-blink-features=AutomationControlled"],
-    )
+    browser = launch_browser(p)
     context = browser.new_context(locale="en-US")
     page = context.new_page()
     page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
@@ -270,7 +291,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from playwright.sync_api import sync_playwright
 
-executable = sys.argv[1]
+browser_options = json.loads(sys.argv[1])
 url = sys.argv[2]
 route_key = sys.argv[3]
 start_date = date.fromisoformat(sys.argv[4])
@@ -468,12 +489,22 @@ def advance_week(page, initial_url, target_date):
     return True
 
 
+def launch_browser(playwright):
+    launch_kwargs = {
+        "headless": bool(browser_options.get("headless", True)),
+        "args": ["--disable-blink-features=AutomationControlled"],
+    }
+    executable_path = browser_options.get("executable_path") or None
+    channel = browser_options.get("channel") or None
+    if executable_path:
+        launch_kwargs["executable_path"] = executable_path
+    elif channel:
+        launch_kwargs["channel"] = channel
+    return playwright.chromium.launch(**launch_kwargs)
+
+
 with sync_playwright() as p:
-    browser = p.chromium.launch(
-        executable_path=executable,
-        headless=False,
-        args=["--disable-blink-features=AutomationControlled"],
-    )
+    browser = launch_browser(p)
     context = browser.new_context(locale="en-US")
     page = context.new_page()
     page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
@@ -592,8 +623,18 @@ with sync_playwright() as p:
 
 
 class AgentBrowserClient:
-    def __init__(self, base_dir: Path) -> None:
+    def __init__(
+        self,
+        base_dir: Path,
+        *,
+        headless: bool,
+        executable_path: str = "",
+        channel: str = "",
+    ) -> None:
         self.base_dir = base_dir
+        self.browser_headless = headless
+        self.browser_executable_path = executable_path
+        self.browser_channel = channel
 
     def extract_spring_page(self, url: str) -> BrowserSpringPage:
         payload = self._run_script(PLAYWRIGHT_EXTRACT_SCRIPT, [url])
@@ -640,14 +681,12 @@ class AgentBrowserClient:
         return self._payload_to_page(payload)
 
     def _run_script(self, script: str, extra_args: list[str], timeout: int = 180) -> dict[str, object]:
-        executable = self._find_browser_executable()
-        if executable is None:
-            raise BrowserUnavailableError("No local Chrome/Edge executable was found for browser automation.")
+        browser_options = self._browser_launch_options()
         mode = self._mode_for_script(script)
         env = dict(os.environ)
         env["PYTHONIOENCODING"] = "utf-8"
         result = subprocess.run(
-            [sys.executable, "--browser-worker", mode, executable, *extra_args],
+            [sys.executable, "--browser-worker", mode, json.dumps(browser_options), *extra_args],
             cwd=self.base_dir,
             capture_output=True,
             text=True,
@@ -678,6 +717,36 @@ class AgentBrowserClient:
         if mode is None:
             raise BrowserUnavailableError("Unknown browser worker script mode.")
         return mode
+
+    def _browser_launch_options(self) -> dict[str, object]:
+        explicit_path = self.browser_executable_path.strip()
+        if explicit_path:
+            browser_path = Path(explicit_path)
+            if not browser_path.is_absolute():
+                browser_path = (self.base_dir / browser_path).resolve()
+            if not browser_path.exists():
+                raise BrowserUnavailableError(
+                    f"Configured browser executable does not exist: {self.browser_executable_path}"
+                )
+            return {
+                "executable_path": str(browser_path),
+                "channel": "",
+                "headless": self.browser_headless,
+            }
+
+        executable = self._find_browser_executable()
+        if executable is not None:
+            return {
+                "executable_path": executable,
+                "channel": "",
+                "headless": self.browser_headless,
+            }
+
+        return {
+            "executable_path": "",
+            "channel": self.browser_channel.strip(),
+            "headless": self.browser_headless,
+        }
 
     def _payload_to_page(self, payload: dict[str, object]) -> BrowserSpringPage:
         return BrowserSpringPage(
@@ -731,4 +800,15 @@ class AgentBrowserClient:
         for path in candidates:
             if path.exists():
                 return str(path)
+        for binary in (
+            "google-chrome",
+            "google-chrome-stable",
+            "chromium",
+            "chromium-browser",
+            "microsoft-edge",
+            "msedge",
+        ):
+            resolved = shutil.which(binary)
+            if resolved:
+                return resolved
         return None

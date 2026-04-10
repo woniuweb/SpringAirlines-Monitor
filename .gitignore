@@ -8,3 +8,4 @@ tmp_selfcheck/
 tmp_selfcheck2/
 build/
 dist/
+deploy/fare-monitor.env

@@ -62,7 +62,10 @@ python -m fare_monitor probe-spring --config fare-monitor.toml
 - 机场代码、航司、来源说明
 - 来源执行摘要
 
-补充说明见 [docs/current-live-coverage.md](./docs/current-live-coverage.md)。
+补充说明见：
+
+- [docs/current-live-coverage.md](./docs/current-live-coverage.md)
+- [docs/linux-deployment.md](./docs/linux-deployment.md)
 
 ## 自动构建与 Release
 
