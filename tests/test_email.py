@@ -1,10 +1,11 @@
 import os
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from fare_monitor.browser_agent import AgentBrowserClient
+from fare_monitor.browser_agent import AgentBrowserClient, PLAYWRIGHT_EXTRACT_SCRIPT
 from fare_monitor.cli import app
 from fare_monitor.config import AppConfig
 from fare_monitor.emailer import CollectionEmailBundle, build_collection_email_bundle, build_email_attachments, build_email_body, send_collection_email
@@ -42,6 +43,25 @@ def test_agent_browser_client_uses_linux_fallback_and_headless(tmp_path) -> None
         options = client._browser_launch_options()
     assert options["executable_path"] == "/usr/bin/chromium"
     assert options["headless"] is True
+
+
+def test_agent_browser_client_runs_worker_via_module_entrypoint(tmp_path) -> None:
+    client = AgentBrowserClient(tmp_path, headless=True, executable_path="", channel="")
+
+    def fake_run(cmd, **kwargs):
+        assert cmd[0]
+        assert cmd[1:5] == ["-m", "fare_monitor", "--browser-worker", "extract"]
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=0,
+            stdout='{"title":"ok","url":"https://example.com","flights":[],"preview_days":[],"day_results":[]}',
+            stderr="",
+        )
+
+    with patch("fare_monitor.browser_agent.shutil.which", return_value="/usr/bin/chromium"):
+        with patch("fare_monitor.browser_agent.subprocess.run", side_effect=fake_run):
+            payload = client._run_script(PLAYWRIGHT_EXTRACT_SCRIPT, ["https://example.com"])
+    assert payload["title"] == "ok"
 
 
 def test_send_collection_email_supports_multiple_recipients_and_attachments(tmp_path) -> None:

@@ -686,7 +686,7 @@ class AgentBrowserClient:
         env = dict(os.environ)
         env["PYTHONIOENCODING"] = "utf-8"
         result = subprocess.run(
-            [sys.executable, "--browser-worker", mode, json.dumps(browser_options), *extra_args],
+            [sys.executable, "-m", "fare_monitor", "--browser-worker", mode, json.dumps(browser_options), *extra_args],
             cwd=self.base_dir,
             capture_output=True,
             text=True,
