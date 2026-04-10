@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+data/
+output/
+tmp_browser_profile/
+tmp_selfcheck/
+tmp_selfcheck2/

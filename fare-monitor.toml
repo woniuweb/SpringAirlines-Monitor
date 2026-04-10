@@ -1,0 +1,76 @@
+# fare-monitor 主配置文件
+# 所有金额单位均为人民币 CNY
+
+[search]
+# 监控的出发机场三字码
+# PEK=北京首都, TSN=天津滨海, SJW=石家庄正定
+origins = ["PEK", "TSN", "SJW"]
+
+# 监控的日本目的地机场三字码
+# NRT=东京成田, HND=东京羽田, KIX=大阪关西, ITM=大阪伊丹
+# NGO=名古屋中部, FUK=福冈, CTS=札幌新千岁, OKA=冲绳那霸
+destinations = ["NRT", "HND", "KIX", "ITM", "NGO", "FUK", "CTS", "OKA"]
+
+# 默认扫描未来多少天
+scan_days = 180
+
+# 主结果低价阈值，只有低于该价格的已验证票价才进入主结果
+qualified_threshold_cny = 1200
+
+[report]
+# 是否默认排除今天的出发日期
+exclude_today = true
+
+# HTML 首屏低价榜最多展示多少条
+top_n = 25
+
+# 页面主标题；留空时按当前配置自动生成
+title = ""
+
+# 页面监控范围说明；留空时按当前配置自动生成
+scope_description = ""
+
+# 页面规则说明；留空时按当前配置自动生成
+rules_description = ""
+
+# 是否展示“经上海转飞参考”之类的连接候选区块
+show_connection_candidates = false
+
+[sources]
+# 当前主 live 来源
+spring_airlines_enabled = true
+
+# 以下来源已建适配器，但默认关闭或未作为主链路启用
+spring_japan_enabled = false
+peach_enabled = false
+jetstar_japan_enabled = false
+
+[performance]
+# Spring live 浏览器采集并发 worker 数
+# 当前主链路按单路由持久会话扫描，默认用 1，避免同时开多个 Spring route session
+spring_live_workers = 1
+
+# 单次 HTTP 请求超时时间，单位秒
+request_timeout_seconds = 20
+
+# probe-spring 默认的日期步长，单位天
+probe_step_days = 14
+
+# Spring 页面顶部周视图默认跨度
+spring_window_days = 7
+
+# 只有顶部 7 天价格带低于该阈值的日期，才会在同页内点击并抓取最低航班
+spring_date_click_threshold_cny = 1200
+
+# Spring route-session 允许连续多少个空白周后再判定该路线为空
+spring_max_consecutive_empty_weeks = 6
+
+[logging]
+# 是否启用阶段简略日志
+enabled = true
+
+# 当前仅使用 INFO 级别摘要日志
+level = "INFO"
+
+# 是否打印阶段摘要，并写入 output/latest/run.log
+stage_summary = true
