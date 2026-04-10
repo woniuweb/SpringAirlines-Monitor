@@ -63,3 +63,15 @@ python -m fare_monitor probe-spring --config fare-monitor.toml
 - 来源执行摘要
 
 补充说明见 [docs/current-live-coverage.md](./docs/current-live-coverage.md)。
+
+## 自动构建与 Release
+
+项目已包含 GitHub Actions 工作流：
+
+- 手动触发：在 GitHub `Actions` 页面运行 `Build Windows Release`
+- 自动发布：推送形如 `v1.0.0` 的 tag 后，自动构建 Windows `exe` 并上传到 `Releases`
+
+当前自动构建产物为：
+
+- `fare-monitor.exe`
+- `fare-monitor-windows.zip`

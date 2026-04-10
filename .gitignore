@@ -6,3 +6,5 @@ output/
 tmp_browser_profile/
 tmp_selfcheck/
 tmp_selfcheck2/
+build/
+dist/

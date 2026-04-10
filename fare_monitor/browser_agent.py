@@ -643,10 +643,11 @@ class AgentBrowserClient:
         executable = self._find_browser_executable()
         if executable is None:
             raise BrowserUnavailableError("No local Chrome/Edge executable was found for browser automation.")
+        mode = self._mode_for_script(script)
         env = dict(os.environ)
         env["PYTHONIOENCODING"] = "utf-8"
         result = subprocess.run(
-            [sys.executable, "-c", script, executable, *extra_args],
+            [sys.executable, "--browser-worker", mode, executable, *extra_args],
             cwd=self.base_dir,
             capture_output=True,
             text=True,
@@ -666,6 +667,17 @@ class AgentBrowserClient:
         if not isinstance(payload, dict):
             raise BrowserUnavailableError("Browser extraction returned an unexpected payload.")
         return payload
+
+    def _mode_for_script(self, script: str) -> str:
+        mapping = {
+            PLAYWRIGHT_EXTRACT_SCRIPT: "extract",
+            PLAYWRIGHT_WINDOW_SCRIPT: "window",
+            PLAYWRIGHT_ROUTE_SCAN_SCRIPT: "route-scan",
+        }
+        mode = mapping.get(script)
+        if mode is None:
+            raise BrowserUnavailableError("Unknown browser worker script mode.")
+        return mode
 
     def _payload_to_page(self, payload: dict[str, object]) -> BrowserSpringPage:
         return BrowserSpringPage(
