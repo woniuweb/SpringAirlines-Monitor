@@ -8,6 +8,7 @@ from email.message import EmailMessage
 from pathlib import Path
 
 from fare_monitor.config import AppConfig
+from fare_monitor.constants import AIRPORT_DISPLAY
 from fare_monitor.reporting import generate_report
 from fare_monitor.stage_logging import StageLogger
 from fare_monitor.storage import Storage
@@ -26,6 +27,7 @@ class CollectionEmailBundle:
     qualified_csv: Path
     run_log_path: Path | None
     failure_details: list[str]
+    top_qualified_rows: list[dict[str, object]]
 
     @property
     def is_failure(self) -> bool:
@@ -109,6 +111,7 @@ def build_collection_email_bundle(
         qualified_csv=resolved_qualified_csv,
         run_log_path=resolved_run_log,
         failure_details=failure_details,
+        top_qualified_rows=qualified_rows[:10],
     )
 
 
@@ -159,9 +162,9 @@ def send_collection_email(
             f"Missing SMTP password in environment variable: {config.email_smtp_password_env or '(not configured)'}"
         )
 
-    subject = build_email_subject(config, bundle)
-    body = build_email_body(bundle)
     attachments = build_email_attachments(config, bundle)
+    subject = build_email_subject(config, bundle)
+    body = build_email_body(bundle, attachments)
 
     if logger is not None:
         logger.log("email", f"start collection_id={bundle.collection_id} recipients={','.join(recipients)} dry_run={dry_run}")
@@ -218,26 +221,94 @@ def send_collection_email(
 
 def build_email_subject(config: AppConfig, bundle: CollectionEmailBundle) -> str:
     prefix = config.email_subject_prefix.strip()
-    status = "ALERT" if bundle.is_failure else "Daily Report"
+    status = "告警" if bundle.is_failure else "日报"
     return f"{prefix} {status} {bundle.collection_id}".strip()
 
 
-def build_email_body(bundle: CollectionEmailBundle) -> str:
+def _airport_label(code: str) -> str:
+    name = AIRPORT_DISPLAY.get(code, code)
+    return f"{name} ({code})"
+
+
+def _route_label(origin: object, destination: object) -> str:
+    origin_code = str(origin or "").strip().upper()
+    destination_code = str(destination or "").strip().upper()
+    return f"{_airport_label(origin_code)} -> {_airport_label(destination_code)}"
+
+
+def _format_top_fare_lines(rows: list[dict[str, object]]) -> list[str]:
+    if not rows:
+        return ["- 本次没有符合价格阈值的已验证票价。"]
+
+    lines: list[str] = []
+    for index, row in enumerate(rows[:5], start=1):
+        flight_no = str(row.get("flight_no") or "-")
+        depart_date = str(row.get("depart_date") or "-")
+        depart_time = str(row.get("depart_time") or "-")
+        price = float(row.get("price_total_cny") or 0.0)
+        carrier = str(row.get("carrier_display_name") or row.get("carrier") or "未知航司")
+        source = str(row.get("source_display_name") or row.get("source") or "未知来源")
+        booking_url = str(row.get("booking_url") or row.get("search_url") or "-")
+        lines.extend(
+            [
+                f"{index}. {price:.0f} 元 | {depart_date} {depart_time}",
+                f"   路线: {_route_label(row.get('origin'), row.get('destination'))}",
+                f"   航司: {carrier} | 来源: {source} | 航班号: {flight_no}",
+                f"   链接: {booking_url}",
+            ]
+        )
+    return lines
+
+
+def _describe_attachments(attachments: list[Path]) -> list[str]:
+    if not attachments:
+        return ["- 本次未附带文件。"]
+
+    descriptions: list[str] = []
+    for attachment in attachments:
+        name = attachment.name
+        if name == "report.html":
+            descriptions.append(f"- {name}: 完整静态报表，可直接打开查看低价榜、走势图和来源摘要。")
+        elif name == "qualified_fares.csv":
+            descriptions.append(f"- {name}: 所有符合阈值的已验证票价明细，可用 Excel 打开筛选。")
+        elif name == "run.log":
+            descriptions.append(f"- {name}: 本次运行阶段日志，主要用于排查失败或被拦截的问题。")
+        else:
+            descriptions.append(f"- {name}: 本次运行生成的附件文件。")
+    return descriptions
+
+
+def build_email_body(bundle: CollectionEmailBundle, attachments: list[Path]) -> str:
     lines = [
-        f"collection_id: {bundle.collection_id}",
-        f"total_fares: {bundle.total_fares}",
-        f"qualified_fares: {bundle.qualified_fares}",
-        f"failed_sources: {bundle.failed_sources}",
-        f"incomplete_sources: {bundle.incomplete_sources}",
-        f"is_inconclusive: {bundle.is_inconclusive}",
-        f"report_path: {bundle.report_path}",
-        f"fares_csv: {bundle.fares_csv}",
-        f"qualified_csv: {bundle.qualified_csv}",
+        "机票监控日报",
+        "",
+        f"任务批次: {bundle.collection_id}",
+        f"总票数: {bundle.total_fares}",
+        f"符合阈值的已验证票价: {bundle.qualified_fares}",
+        f"失败来源数: {bundle.failed_sources}",
+        f"不完整来源数: {bundle.incomplete_sources}",
+        f"结果是否需人工复核: {'是' if bundle.is_inconclusive else '否'}",
+        f"报表路径: {bundle.report_path}",
+        f"全部票价 CSV: {bundle.fares_csv}",
+        f"合格票价 CSV: {bundle.qualified_csv}",
+        "",
+        "最低价摘要",
     ]
+    lines.extend(_format_top_fare_lines(bundle.top_qualified_rows))
+
     if bundle.is_failure and bundle.failure_details:
         lines.append("")
-        lines.append("failure_details:")
+        lines.append("失败摘要")
         lines.extend(f"- {item}" for item in bundle.failure_details[:5])
+
+    lines.append("")
+    lines.append("附件说明")
+    lines.extend(_describe_attachments(attachments))
+
+    lines.append("")
+    lines.append("说明")
+    lines.append("- 邮件正文只展示最低价摘要，完整明细请查看附件。")
+    lines.append("- 报表和 CSV 均基于本次运行已验证的数据生成。")
     return "\n".join(lines)
 
 
